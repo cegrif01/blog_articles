@@ -1,0 +1,100 @@
+This post will be part 1 of a 5 part series on S.O.L.I.D design principles.  I will use a “Menu Maker” app throughout the course of this lesson series.  
+
+The Menu Maker app can be found on github.com/cegrif01/menu_maker.  I have split up each lesson in this series in 3 parts:
+
+* The feature
+* Anti-pattern
+* The Design principle fix
+
+### The Feature
+The menu app allows a user to add an item name, description, and price for each of their menu items.  Then they can submit their items and a csv file will be downloaded with their menu items.  This may sound like a trivial problem, but I intentionally used a very simple example to drive home the point of the design principles.  
+
+My goal is to help you understand the principles rather than how to code something very complicated.  To keep us super focused, I chose not to use a framework or composer.  Again, I want us to be super focused on HOW each of these patterns can enhance your skills a developer.  I'm a huge Laravel and Composer advocate, but I want to avoid comments and questions related to why something failed when doing a composer install or why artisan isn't loaded.
+
+
+### The Anti-pattern
+Let's look at how a beginner to Object Oriented programming might solve this problem.  You can view the source of the anti-pattern by viewing https://github.com/cegrif01/menu_maker/tree/solid-anti-pattern
+
+**Let's take a look at the code:**
+Here is the directory structure for this code:
+
+{<1>}![directory structure for menu app](/content/images/2014/May/Selection_012.png)
+
+Now let's take a look at the index.php file:
+
+{<2>}![index.php file](/content/images/2014/May/Selection_002.png)
+
+This is a simple view that allows users to add menu items.  For now I just fixed the menu items to post two items.  Perhaps as bonus, you can write the javascript that it takes for a more dynamic design.  However, the point of this lesson isn't to teach you javascript.
+
+The user will be able to press a button and create multiple forms for creating more items.  When I'm designing something for a client or for my company, I normally start with something simple in the view to get the array formatting down.  This allows me to know that my backend code will work with the array structures from the browser or a client like Postman.  
+
+Next, let's take a look at the bootstrapper.php file:
+
+{<3>}![boostrapper.php file](/content/images/2014/May/Selection_003.png)
+
+Since our app is so simple and we aren't using a framework, I just send the post request to a bootstrapper file.  In this file, we throw an Exception if the post array is empty.  If we have contents in the post array—meaning the user has filled out the form and hit submit—a new MenuMaker instance is  instantiated, and we call it's makeMenu method.
+
+**Where's the array to pass into the MenuMaker.makeMenu method?**
+
+The short answer is that the post array is global.  That means that I can call it from anywhere in my application.  That means that I can do the following in my MenuMaker class:
+{<4>}![MenuMaker.php file](/content/images/2014/May/Selection_006.png)
+
+If you aren't cringing at this point, after reading the entire series, come back and read this part again, AND CRINGE!  If you are laughing hysterically at this point due to how terrible this code is, then you are well on your way.
+
+
+**Let's reflect a bit:**
+
+Let's take a moment and think about the code that's been written at this point.  The index.php file	 contains the html that the user will use to type in an item name, description, and price for each entry.  For now there are only two sets of fields so the max a user will be able to add is two menu entries.  The bootstrap.php file is what we use to glue (or bootstrap) the index.php view to the application logic in MenuMaker.php.  Every time there is a post request, the makeMenu method gets called on the MenuMaker class and the $_POST array is immediately available to be iterated over.
+
+Right now the makeMenu method looks a bit scary.  Let's take a look at it in a little more detail.  A sample $_POST array will look like the following:
+
+{<5>}![post array example](/content/images/2014/May/Selection_007.png)
+
+When developing an application or a major feature for an application, I find that really nailing down the structure of the data from the source whether that be database, user input, or api request is the most critical part.
+
+**Validation**
+
+With a visual representation of the array that will iterated, it should be much easier to see what's going on.  The two foreach loops are used to validate the input.  It's looping over every menu entry to make sure that there aren't any null or empty values.  In a larger application when there are input errors, you'd want to have pretty error messages that gently nudges the user in the right direction.  For sake of simplicity, I just throw an exception that let's the user know which field had the error.
+
+**Csv Export**<br/>
+The next part of the method deals with csv export.  There's header information that is required when downloading a file from the browser.  Then I iterate over the array and use an fputcsv function to add the content to the array.
+
+**So What's Wrong:**<br />
+Besides the fact that the makeMenu method looks very complicated, we are violating the “Single Responsibility Principle.”  The Single Responsibility Principle states:
+
+“A class or module should have one, and only one, reason to change” ~Martin Fowler
+
+The makeMenu method is responsible for Validation and Export.  So what if we wanted to add more validation rules?  What if our client or our boss wants us to add the ability for html exports?  If this were the case, you'd go in and modify the makeMenu method.  When I say “modify”, what I really mean is create more annoying if and foreach loops to squeeze those features in.  Let's look at if we wanted to validate that the price field is a numeric value.  Let's add to the ugliness:
+
+{<6>}![forcing another validation rule in MenuMaker.php](/content/images/2014/May/Selection_008.png)
+
+As if the code wasn't already bad enough.  Now at this point, I hope you can imagine what this function will look like after a few feature requests or modifications.  Now let's look at how we might refactor this code that violates the SRP.
+
+## The Single Responsibility Principle Refactor:
+
+Before we refactor, let's take a moment to think about how we will modify the structure of this application.  We need our application to validate the input, and then use that input to export to a csv file.  So let's start by adding Validator.php and CsvExporter.php.
+
+Our directory structure should now look like the following:
+
+{<7>}![srp directory structure](/content/images/2014/May/Selection_013.png)
+
+The Validator class should look like the following:
+
+{<8>}![Validator.php](/content/images/2014/May/Selection_014.png)
+
+I just copy and pasted the validation logic from MenuMaker and added it to a method called validate in the Validator class.  Of course, we have to modify the MenuMaker class to now call the validate method on the Validator class.
+
+{<9>}![MenuMaker.php after validation refactor](/content/images/2014/May/Selection_015.png)
+
+Now that looks much better!  Now we can change how we validate to our little heart's content without having the modify the MenuMaker class.  Now let's go ahead and do the same for csv exporting.
+
+CsvExporter.php
+
+{<10>}![CsvExporter.php](/content/images/2014/May/CsvFinal.jpg)
+Note: please never hardcode the file location. For this demo, this is fine, but never do this in a prodcution app.
+
+Let's look at the fully refactored MenuMaker.php file:
+
+{<11>}![Refactored MenuMaker.php](/content/images/2014/May/Selection_017-1.png)
+
+Now that is much cleaner.  It's hard to imagine making the code much better, but we definitely can.  In the next part of this lesson, we will talk loose coupling vs. tight coupling and how we can use the Dependency Inversion principle (the D in solid) to make this happen.  Stay tuned.
